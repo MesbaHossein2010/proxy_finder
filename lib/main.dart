@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _importFromFile() async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);    if (result == null || result.files.single.path == null) return;
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);    if (result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
     final content = await File(path).readAsString();
     final uris = extractProxyUris(content);
