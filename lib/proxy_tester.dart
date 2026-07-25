@@ -70,6 +70,33 @@ class ProxyTester {
     return controller.stream;
   }
 
+  /// Port of desktop's tsp() — runs several requests through the same
+  /// proxy and reports avg/min/max/jitter/success rate.
+  Future<SpeedData?> speedTest(Proxy proxy, {int iterations = 3}) async {
+    final latencies = <double>[];
+    for (var i = 0; i < iterations; i++) {
+      final latency = await engine.testProxy(proxy, testUrl: testUrl, timeout: timeout);
+      if (latency != null) latencies.add(latency);
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    if (latencies.isEmpty) return null;
+
+    final avg = latencies.reduce((a, b) => a + b) / latencies.length;
+    final jitter = latencies.length > 1
+        ? latencies.map((l) => (l - avg).abs()).reduce((a, b) => a + b) / latencies.length
+        : 0.0;
+    final min = latencies.reduce((a, b) => a < b ? a : b);
+    final max = latencies.reduce((a, b) => a > b ? a : b);
+
+    return SpeedData(
+      avgMs: avg,
+      minMs: min,
+      maxMs: max,
+      jitterMs: jitter,
+      successRate: (latencies.length / iterations) * 100,
+    );
+  }
+
   /// Sorts working proxies by latency and returns the fastest — same as
   /// desktop's "Copy Best" (min by latency among working proxies).
   static Proxy? pickBest(List<Proxy> tested) {
@@ -77,5 +104,23 @@ class ProxyTester {
     if (working.isEmpty) return null;
     working.sort((a, b) => a.latencyMs!.compareTo(b.latencyMs!));
     return working.first;
+  }
+
+  /// Full results list sorted for display: working proxies first (fastest
+  /// to slowest), failed proxies after.
+  static List<Proxy> sortedForDisplay(List<Proxy> tested) {
+    final sorted = List<Proxy>.from(tested);
+    sorted.sort((a, b) {
+      final aOk = a.working == true;
+      final bOk = b.working == true;
+      if (aOk != bOk) return aOk ? -1 : 1;
+      if (aOk && bOk) {
+        final aLat = a.latencyMs ?? double.infinity;
+        final bLat = b.latencyMs ?? double.infinity;
+        return aLat.compareTo(bLat);
+      }
+      return 0;
+    });
+    return sorted;
   }
 }

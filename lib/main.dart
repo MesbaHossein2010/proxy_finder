@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'models/proxy.dart';
 import 'proxy_parser.dart';
 import 'proxy_engine.dart';
@@ -43,9 +45,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _pasteController = TextEditingController();
+  final _urlController = TextEditingController();
+
   List<Proxy> _proxies = [];
   List<Proxy> _results = [];
   bool _testing = false;
+  bool _fetching = false;
+  bool _speedTesting = false;
   int _testedCount = 0;
   bool _connected = false;
   Proxy? _connectedProxy;
@@ -62,25 +68,46 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _importFromText() {
-    final uris = extractProxyUris(_pasteController.text);
+  void _loadFromText(String text, String sourceLabel) {
+    final uris = extractProxyUris(text);
     final proxies = uris.map(parseProxyUri).whereType<Proxy>().toList();
     setState(() {
       _proxies = proxies;
       _results = [];
     });
+    _showSnack('Loaded ${proxies.length} proxies from $sourceLabel');
+  }
+
+  void _importFromText() {
+    _loadFromText(_pasteController.text, 'pasted text');
   }
 
   Future<void> _importFromFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);    if (result == null || result.files.single.path == null) return;
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);
+    if (result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
     final content = await File(path).readAsString();
-    final uris = extractProxyUris(content);
-    final proxies = uris.map(parseProxyUri).whereType<Proxy>().toList();
-    setState(() {
-      _proxies = proxies;
-      _results = [];
-    });
+    _loadFromText(content, 'file');
+  }
+
+  Future<void> _fetchFromUrl() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) return;
+    setState(() => _fetching = true);
+    try {
+      final response = await http
+          .get(Uri.parse(url), headers: {'User-Agent': 'Mozilla/5.0'})
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        _loadFromText(response.body, 'URL');
+      } else {
+        _showSnack('Fetch failed: HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      _showSnack('Fetch failed: $e');
+    } finally {
+      if (mounted) setState(() => _fetching = false);
+    }
   }
 
   Future<void> _startTesting() async {
@@ -102,6 +129,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _testing = false);
   }
 
+  Future<void> _speedTestAll() async {
+    final working = _results.where((p) => p.working == true).toList();
+    if (working.isEmpty) return;
+    setState(() => _speedTesting = true);
+
+    for (final proxy in working) {
+      final data = await _tester.speedTest(proxy);
+      if (!mounted) return;
+      setState(() {
+        final idx = _results.indexWhere((p) => p.uri == proxy.uri);
+        if (idx != -1) _results[idx] = _results[idx].copyWithSpeedData(data);
+      });
+    }
+
+    if (mounted) setState(() => _speedTesting = false);
+  }
+
   Future<void> _toggleConnection() async {
     if (_connected) {
       await engine.disconnect();
@@ -114,10 +158,21 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _connectedProxy = best);
   }
 
+  void _copyUri(String uri) {
+    Clipboard.setData(ClipboardData(text: uri));
+    _showSnack('Copied URI');
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final best = ProxyTester.pickBest(_results);
     final workingCount = _results.where((p) => p.working == true).length;
+    final displayResults = ProxyTester.sortedForDisplay(_results);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Proxy Checker')),
@@ -126,12 +181,37 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // --- URL fetch ---
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _urlController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Subscription URL',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _fetching ? null : _fetchFromUrl,
+                  child: _fetching
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Fetch'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // --- Paste / file import ---
             TextField(
               controller: _pasteController,
               maxLines: 4,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                hintText: 'Paste subscription URL content or proxy URIs here',
+                hintText: 'Or paste proxy URIs / base64 subscription content here',
               ),
             ),
             const SizedBox(height: 8),
@@ -149,36 +229,82 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             Text('${_proxies.length} proxies loaded', style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: (_proxies.isEmpty || _testing) ? null : _startTesting,
-              child: Text(_testing ? 'Testing ($_testedCount/${_proxies.length})...' : 'Start Test'),
+
+            // --- Test controls ---
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (_proxies.isEmpty || _testing) ? null : _startTesting,
+                    child: Text(_testing ? 'Testing ($_testedCount/${_proxies.length})...' : 'Start Test'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: (workingCount == 0 || _speedTesting) ? null : _speedTestAll,
+                    child: Text(_speedTesting ? 'Speed Testing...' : 'Speed Test All'),
+                  ),
+                ),
+              ],
             ),
-            if (_testing) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
+            if (_testing || _speedTesting)
+              const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
             const SizedBox(height: 12),
-            if (_results.isNotEmpty) Text('$workingCount working / ${_results.length} tested'),
+            if (_results.isNotEmpty) Text('$workingCount working / ${_results.length} tested — sorted by ping'),
+
+            // --- Results list ---
             Expanded(
               child: ListView.builder(
-                itemCount: _results.length,
+                itemCount: displayResults.length,
                 itemBuilder: (context, i) {
-                  final p = _results[i];
+                  final p = displayResults[i];
                   final ok = p.working == true;
+                  final sd = p.speedData;
+                  final subtitleParts = <String>[];
+                  if (p.latencyMs != null) {
+                    subtitleParts.add('${p.latencyMs!.toStringAsFixed(0)} ms');
+                  } else if (p.testType != null) {
+                    subtitleParts.add(p.testType!);
+                  }
+                  if (sd != null) {
+                    subtitleParts.add(
+                        'speed: avg ${sd.avgMs.toStringAsFixed(0)}ms, jitter ${sd.jitterMs.toStringAsFixed(0)}ms, ${sd.successRate.toStringAsFixed(0)}% ok');
+                  }
                   return ListTile(
                     leading: Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green : Colors.redAccent),
                     title: Text('${p.protocol} — ${p.server}:${p.port}'),
-                    subtitle: Text(p.latencyMs != null ? '${p.latencyMs!.toStringAsFixed(0)} ms' : p.testType ?? ''),
+                    subtitle: Text(subtitleParts.join(' · ')),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.copy, size: 20),
+                      tooltip: 'Copy URI',
+                      onPressed: () => _copyUri(p.uri),
+                    ),
                   );
                 },
               ),
             ),
+
+            // --- Best proxy / connect ---
             if (best != null)
               Card(
                 color: const Color(0xFF1A1A2E),
                 child: ListTile(
                   title: Text('Best: ${best.protocol} — ${best.server}'),
                   subtitle: Text('${best.latencyMs!.toStringAsFixed(0)} ms'),
-                  trailing: FilledButton(
-                    onPressed: _toggleConnection,
-                    child: Text(_connected ? 'Disconnect' : 'Connect'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 20),
+                        tooltip: 'Copy URI',
+                        onPressed: () => _copyUri(best.uri),
+                      ),
+                      FilledButton(
+                        onPressed: _toggleConnection,
+                        child: Text(_connected ? 'Disconnect' : 'Connect'),
+                      ),
+                    ],
                   ),
                 ),
               ),

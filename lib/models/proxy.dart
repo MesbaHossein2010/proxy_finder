@@ -20,6 +20,7 @@ class Proxy {
   final bool? working;
   final double? latencyMs;
   final String? testType; // 'tcp' | 'full' | 'tcp_fail' | 'full_fail' | ...
+  final SpeedData? speedData;
 
   const Proxy({
     required this.protocol,
@@ -37,6 +38,7 @@ class Proxy {
     this.working,
     this.latencyMs,
     this.testType,
+    this.speedData,
   });
 
   Proxy copyWithResult({
@@ -60,6 +62,45 @@ class Proxy {
       working: working,
       latencyMs: latencyMs,
       testType: testType,
+      speedData: speedData,
     );
   }
+
+  Proxy copyWithSpeedData(SpeedData? data) {
+    return Proxy(
+      protocol: protocol,
+      server: server,
+      port: port,
+      uri: uri,
+      uuid: uuid,
+      password: password,
+      encryption: encryption,
+      network: network,
+      tls: tls,
+      sni: sni,
+      path: path,
+      host: host,
+      working: working,
+      latencyMs: latencyMs,
+      testType: testType,
+      speedData: data,
+    );
+  }
+}
+
+/// Port of desktop's speed test result dict (avg/min/max/jitter/success_rate).
+class SpeedData {
+  final double avgMs;
+  final double minMs;
+  final double maxMs;
+  final double jitterMs;
+  final double successRate; // 0-100
+
+  const SpeedData({
+    required this.avgMs,
+    required this.minMs,
+    required this.maxMs,
+    required this.jitterMs,
+    required this.successRate,
+  });
 }
