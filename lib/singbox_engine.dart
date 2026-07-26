@@ -98,7 +98,7 @@ class SingBoxTestEngine {
     );
 
     final config = SingBox(
-      dns: Dns(servers: [DnsServer(tag: 'dns-out', address: '8.8.8.8')]),
+      dns: Dns(servers: [DnsServer(tag: 'dns-out', address: '8.8.8.8')], rules: []),
       inbounds: [tunInbound],
       route: Route(
         rules: [],
@@ -111,14 +111,21 @@ class SingBoxTestEngine {
     );
 
     final storage = ProfileStorage();
-    var profile = storage.getSelectedProfile();
-    final id = profile?.id ?? storage.generateProfileId;
+    final existing = storage.getSelectedProfile();
+    final int id = existing?.id ?? storage.generateProfileId;
     final path = await storage.getProfilePath(id);
-    profile ??= Profile(
-      id: id,
-      name: 'proxy-checker-test',
-      typed: TypedProfile(type: ProfileType.local, path: path),
-    );
+    final Profile profile = existing ??
+        Profile(
+          id: id,
+          order: 0,
+          name: 'proxy-checker-test',
+          outboundsCount: null,
+          typed: TypedProfile(
+            type: ProfileType.local,
+            path: path,
+            lastUpdated: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
     await storage.addProfile(profile, config);
     storage.setSelectedProfile(id);
   }
