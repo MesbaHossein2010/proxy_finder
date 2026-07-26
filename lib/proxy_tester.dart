@@ -123,4 +123,20 @@ class ProxyTester {
     });
     return sorted;
   }
+
+  /// Runs the real group-based test via SingBoxTestEngine and maps
+  /// results back onto Proxy objects using the same tag scheme.
+  static List<Proxy> applyGroupResults(
+    List<Proxy> proxies,
+    Map<String, double?> tagToLatency,
+    String Function(dynamic) tagFor,
+  ) {
+    return proxies.map((p) {
+      final latency = tagToLatency[tagFor(p)];
+      if (latency == null) {
+        return p.copyWithResult(working: false, testType: 'group_test_fail');
+      }
+      return p.copyWithResult(working: true, latencyMs: latency, testType: 'group_test_ok');
+    }).toList();
+  }
 }

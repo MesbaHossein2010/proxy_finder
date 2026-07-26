@@ -5,13 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'models/proxy.dart';
 import 'proxy_parser.dart';
-import 'proxy_engine.dart';
 import 'proxy_tester.dart';
-import 'mock_engine.dart';
+import 'singbox_engine.dart';
 
-// Swap MockEngine() for your real plugin-backed engine once one is chosen
-// and vetted. Nothing else in this file needs to change to do that.
-final ProxyEngine engine = MockEngine();
+final singBoxEngine = SingBoxTestEngine();
 
 void main() {
   runApp(const ProxyCheckerApp());
@@ -52,13 +49,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _fetching = false;
   bool _speedTesting = false;
   int _testedCount = 0;
-  late final ProxyTester _tester;
-
   @override
   void initState() {
     super.initState();
-    _tester = ProxyTester(engine);
-    engine.init();
+    singBoxEngine.init();
   }
 
   void _loadFromText(String text, String sourceLabel) {
@@ -119,12 +113,21 @@ class _HomeScreenState extends State<HomeScreen> {
       _results = [];
     });
 
-    await for (final result in _tester.testAll(_proxies, concurrency: 10)) {
-      if (!mounted) return;
-      setState(() {
-        _results.add(result);
-        _testedCount++;
-      });
+    try {
+      final tagResults = await singBoxEngine.testGroup(_proxies);
+      final applied = ProxyTester.applyGroupResults(
+        _proxies,
+        tagResults,
+        (p) => singBoxEngine.tagFor(p as Proxy),
+      );
+      if (mounted) {
+        setState(() {
+          _results = applied;
+          _testedCount = applied.length;
+        });
+      }
+    } catch (e) {
+      _showSnack('Test failed: \$e');
     }
 
     if (mounted) setState(() => _testing = false);
@@ -136,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _speedTesting = true);
 
     for (final proxy in working) {
-      final data = await _tester.speedTest(proxy);
+      final data = null; // speed test needs its own pass over singBoxEngine — next iteration
       if (!mounted) return;
       setState(() {
         final idx = _results.indexWhere((p) => p.uri == proxy.uri);

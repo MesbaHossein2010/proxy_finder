@@ -12,6 +12,10 @@ dependencies:
     sdk: flutter
   file_picker: 10.3.10        # import proxy list from a file
   http: ^1.2.2                 # fetch subscription URLs
+  path_provider: ^2.1.0
+  flutter_sing_box:
+    git:
+      url: https://github.com/clash-sing/flutter_sing_box.git
   # --- VPN/proxy engine plugin ---
   # Pick ONE community sing-box wrapper and vet it before committing:
   #   flutter_sing_box, flutter_singbox_vpn, or sing_box (all on pub.dev)
@@ -25,3 +29,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+dependency_overrides:
+  win32: ^6.0.1
