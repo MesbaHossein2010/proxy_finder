@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> Clearing stale pub git cache for flutter_sing_box..."
-rm -rf ~/.pub-cache/git/cache/flutter_sing_box-*
-rm -rf ~/.pub-cache/git/flutter_sing_box-*
-
-echo "==> Adding package_info_plus override alongside device_info_plus..."
+echo "==> Fixing DnsServer -> Server (correct class name/fields) in lib/singbox_engine.dart..."
 python3 - << 'PYEOF'
-path = "pubspec.yaml"
+path = "lib/singbox_engine.dart"
 with open(path) as f:
     content = f.read()
 
-content = content.replace(
-    'device_info_plus: ">=9.0.0 <11.0.0"',
-    'device_info_plus: ">=9.0.0 <11.0.0"\n  package_info_plus: ">=7.0.0 <9.0.0"'
-)
+old = "dns: Dns(servers: [DnsServer(tag: 'dns-out', address: '8.8.8.8')], rules: []),"
+new = "dns: Dns(servers: [Server(tag: 'dns-out', type: 'udp', server: '8.8.8.8')], rules: []),"
+
+assert old in content, "expected DnsServer line not found — aborting"
+content = content.replace(old, new)
 
 with open(path, "w") as f:
     f.write(content)
-print("pubspec.yaml updated with package_info_plus override.")
+print("Fixed.")
 PYEOF
 
 echo "==> flutter clean & pub get..."
@@ -27,7 +24,7 @@ flutter pub get
 
 echo "==> Committing and pushing..."
 git add .
-git commit -m "Clear stale git cache; override package_info_plus alongside device_info_plus"
+git commit -m "Fix Dns server class name (Server, not DnsServer) and correct fields"
 git push
 
 echo "==> Done. Check Actions tab."

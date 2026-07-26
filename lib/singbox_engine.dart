@@ -98,7 +98,7 @@ class SingBoxTestEngine {
     );
 
     final config = SingBox(
-      dns: Dns(servers: [DnsServer(tag: 'dns-out', address: '8.8.8.8')], rules: []),
+      dns: Dns(servers: [Server(tag: 'dns-out', type: 'udp', server: '8.8.8.8')], rules: []),
       inbounds: [tunInbound],
       route: Route(
         rules: [],
