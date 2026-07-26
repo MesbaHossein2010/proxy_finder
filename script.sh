@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+set -e
+
+echo "==> Writing lib/main.dart..."
+cat > lib/main.dart << 'DARTEOF'
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -320,3 +325,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+DARTEOF
+
+echo "==> Running flutter clean & pub get..."
+flutter clean
+flutter pub get
+
+echo "==> Committing and pushing..."
+git add .
+git commit -m "Replace paste textbox with clipboard-paste button, matching desktop UI"
+git push
+
+echo "==> Done. Check the Actions tab on GitHub for the build."
