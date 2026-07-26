@@ -44,7 +44,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _urlController = TextEditingController();
+  final _urlController = TextEditingController(text: "https://raw.githubusercontent.com/AzadNetCH/Clash/main/AzadNet.txt");
 
   List<Proxy> _proxies = [];
   List<Proxy> _results = [];
@@ -52,9 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _fetching = false;
   bool _speedTesting = false;
   int _testedCount = 0;
-  bool _connected = false;
-  Proxy? _connectedProxy;
-
   late final ProxyTester _tester;
 
   @override
@@ -62,9 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _tester = ProxyTester(engine);
     engine.init();
-    engine.connectionStatus.listen((status) {
-      if (mounted) setState(() => _connected = status);
-    });
   }
 
   void _loadFromText(String text, String sourceLabel) {
@@ -153,17 +147,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _speedTesting = false);
   }
 
-  Future<void> _toggleConnection() async {
-    if (_connected) {
-      await engine.disconnect();
-      setState(() => _connectedProxy = null);
-      return;
-    }
-    final best = ProxyTester.pickBest(_results);
-    if (best == null) return;
-    await engine.connect(best);
-    setState(() => _connectedProxy = best);
-  }
 
   void _copyUri(String uri) {
     Clipboard.setData(ClipboardData(text: uri));
@@ -291,26 +274,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // --- Best proxy / connect ---
+            // --- Best proxy (copy only, no connect) ---
             if (best != null)
               Card(
                 color: const Color(0xFF1A1A2E),
                 child: ListTile(
                   title: Text('Best: ${best.protocol} — ${best.server}'),
                   subtitle: Text('${best.latencyMs!.toStringAsFixed(0)} ms'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.copy, size: 20),
-                        tooltip: 'Copy URI',
-                        onPressed: () => _copyUri(best.uri),
-                      ),
-                      FilledButton(
-                        onPressed: _toggleConnection,
-                        child: Text(_connected ? 'Disconnect' : 'Connect'),
-                      ),
-                    ],
+                  trailing: IconButton(
+                    icon: const Icon(Icons.copy, size: 20),
+                    tooltip: 'Copy URI',
+                    onPressed: () => _copyUri(best.uri),
                   ),
                 ),
               ),
