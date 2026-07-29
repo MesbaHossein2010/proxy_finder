@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      _showSnack('Test failed: \$e');
+      _showSnack('Test failed: $e');
     }
 
     if (mounted) setState(() => _testing = false);

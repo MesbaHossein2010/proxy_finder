@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> Setting minSdk to 26 (required by flutter_sing_box)..."
+echo "==> Fixing broken string interpolation in lib/main.dart (was printing literal '\$e' instead of the real error)..."
 python3 - << 'PYEOF'
-path = "android/app/build.gradle.kts"
+path = "lib/main.dart"
 with open(path) as f:
     content = f.read()
 
-old = "minSdk = flutter.minSdkVersion"
-new = "minSdk = 26"
+old = "_showSnack('Test failed: \\$e');"
+new = "_showSnack('Test failed: $e');"
 
-assert old in content, "expected minSdk line not found — aborting"
-content = content.replace(old, new)
+if old in content:
+    content = content.replace(old, new)
+    print("Fixed via exact match.")
+else:
+    # Fallback: catch any remaining literal backslash-dollar in a showSnack call
+    import re
+    content, n = re.subn(r"_showSnack\('Test failed: \\\$e'\)", "_showSnack('Test failed: $e')", content)
+    print(f"Fixed {n} occurrence(s) via regex fallback.")
 
 with open(path, "w") as f:
     f.write(content)
-print("Fixed.")
 PYEOF
 
 echo "==> flutter clean & pub get..."
@@ -24,7 +29,7 @@ flutter pub get
 
 echo "==> Committing and pushing..."
 git add .
-git commit -m "Bump minSdk to 26 as required by flutter_sing_box"
+git commit -m "Fix broken error string interpolation to actually show the real test failure"
 git push
 
-echo "==> Done. Check Actions tab."
+echo "==> Done. Check Actions tab, then run Start Test again and send me the actual error message."
