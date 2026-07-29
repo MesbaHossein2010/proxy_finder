@@ -1,36 +1,17 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> Enabling core library desugaring in android/app/build.gradle.kts..."
+echo "==> Setting minSdk to 26 (required by flutter_sing_box)..."
 python3 - << 'PYEOF'
 path = "android/app/build.gradle.kts"
 with open(path) as f:
     content = f.read()
 
-old_compile_options = """    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }"""
+old = "minSdk = flutter.minSdkVersion"
+new = "minSdk = 26"
 
-new_compile_options = """    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
-    }"""
-
-assert old_compile_options in content, "compileOptions block not found — aborting"
-content = content.replace(old_compile_options, new_compile_options)
-
-# Add the desugaring dependency. Insert a dependencies block if none exists,
-# right before the closing brace of the `android { ... }` block's sibling area.
-if "dependencies {" in content:
-    content = content.replace(
-        "dependencies {",
-        'dependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")',
-        1
-    )
-else:
-    content = content.rstrip() + '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")\n}\n'
+assert old in content, "expected minSdk line not found — aborting"
+content = content.replace(old, new)
 
 with open(path, "w") as f:
     f.write(content)
@@ -43,7 +24,7 @@ flutter pub get
 
 echo "==> Committing and pushing..."
 git add .
-git commit -m "Enable core library desugaring for flutter_sing_box requirement"
+git commit -m "Bump minSdk to 26 as required by flutter_sing_box"
 git push
 
 echo "==> Done. Check Actions tab."
