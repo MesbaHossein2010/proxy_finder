@@ -117,6 +117,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      // Re-run init() here (awaited) so we're certain the Android Activity
+      // is attached — the earlier initState() call wasn't awaited and may
+      // have silently failed if the Activity wasn't ready at app cold start.
+      await singBoxEngine.init();
       final tagResults = await singBoxEngine.testGroup(_proxies);
       final applied = ProxyTester.applyGroupResults(
         _proxies,
