@@ -13,6 +13,7 @@ dependencies:
   file_picker: 10.3.10        # import proxy list from a file
   http: ^1.2.2                 # fetch subscription URLs
   path_provider: ^2.1.0
+  mmkv: ^2.0.1
   flutter_sing_box:
     git:
       url: https://github.com/clash-sing/flutter_sing_box.git

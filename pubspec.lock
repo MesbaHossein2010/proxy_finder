@@ -298,7 +298,7 @@ packages:
     source: hosted
     version: "2.0.0"
   mmkv:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: mmkv
       sha256: "42fb1a6be1b00051612b4060e343eb28ade355ef6b845b07351696b2c6d2b256"

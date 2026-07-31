@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:mmkv/mmkv.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -10,7 +11,9 @@ import 'singbox_engine.dart';
 
 final singBoxEngine = SingBoxTestEngine();
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MMKV.initialize();
   runApp(const ProxyCheckerApp());
 }
 
