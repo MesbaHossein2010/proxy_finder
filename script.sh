@@ -1,42 +1,30 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> Adding step-by-step diagnostics to isolate exactly which call fails..."
+echo "==> Switching CI workflow to build debug APK (rules out R8/shrinking as the cause)..."
 python3 - << 'PYEOF'
-path = "lib/main.dart"
+path = ".github/workflows/build.yml"
 with open(path) as f:
     content = f.read()
 
-old = """    try {
-      // Re-run init() here (awaited) so we're certain the Android Activity
-      // is attached — the earlier initState() call wasn't awaited and may
-      // have silently failed if the Activity wasn't ready at app cold start.
-      await singBoxEngine.init();
-      final tagResults = await singBoxEngine.testGroup(_proxies);"""
-
-new = """    try {
-      _showSnack('Step 1: calling init()...');
-      await singBoxEngine.init();
-      _showSnack('Step 1 OK. Step 2: building profile + starting VPN...');
-      final tagResults = await singBoxEngine.testGroup(_proxies);
-      _showSnack('Step 2 OK.');"""
-
-assert old in content, "expected try block not found — aborting"
-content = content.replace(old, new)
+content = content.replace(
+    "run: flutter build apk --release",
+    "run: flutter build apk --debug"
+)
+content = content.replace(
+    "path: build/app/outputs/flutter-apk/app-release.apk",
+    "path: build/app/outputs/flutter-apk/app-debug.apk"
+)
 
 with open(path, "w") as f:
     f.write(content)
-print("Fixed.")
+print("Workflow updated to build debug APK.")
 PYEOF
-
-echo "==> flutter clean & pub get..."
-flutter clean
-flutter pub get
 
 echo "==> Committing and pushing..."
 git add .
-git commit -m "Add step-by-step diagnostics to isolate NO_ACTIVITY failure point"
+git commit -m "Temporarily build debug APK to test if release R8 shrinking is causing NO_ACTIVITY"
 git push
 
-echo "==> Done. Check Actions tab, install, tap Start Test, and tell me exactly"
-echo "    which step message appears last before the error."
+echo "==> Done. Once built, install this debug APK (uninstall the old one first,"
+echo "    since debug/release builds can have different signing) and try Start Test again."
