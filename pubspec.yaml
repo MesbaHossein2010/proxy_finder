@@ -15,8 +15,7 @@ dependencies:
   path_provider: ^2.1.0
   mmkv: ^2.0.1
   flutter_sing_box:
-    git:
-      url: https://github.com/clash-sing/flutter_sing_box.git
+    path: packages/flutter_sing_box_patched
   # --- VPN/proxy engine plugin ---
   # Pick ONE community sing-box wrapper and vet it before committing:
   #   flutter_sing_box, flutter_singbox_vpn, or sing_box (all on pub.dev)

@@ -161,12 +161,10 @@ packages:
   flutter_sing_box:
     dependency: "direct main"
     description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "773c0e7028ee9901862bd3ceb84e58d4eac74f0a"
-      url: "https://github.com/clash-sing/flutter_sing_box.git"
-    source: git
-    version: "1.1.4"
+      path: "packages/flutter_sing_box_patched"
+      relative: true
+    source: path
+    version: "1.1.5"
   flutter_test:
     dependency: "direct dev"
     description: flutter
