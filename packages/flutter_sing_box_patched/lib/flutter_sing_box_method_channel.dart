@@ -28,6 +28,11 @@ class MethodChannelFlutterSingBox extends FlutterSingBoxPlatform {
   }
 
   @override
+  Future<bool> prepareVpn() async {
+    return await methodChannel.invokeMethod('prepareVpn');
+  }
+
+  @override
   Future<void> stopVpn() async {
     return await methodChannel.invokeMethod('stopVpn');
   }
@@ -66,6 +71,11 @@ class MethodChannelFlutterSingBox extends FlutterSingBoxPlatform {
   @override
   Future<String> getSingBoxVersion() async {
     return await methodChannel.invokeMethod('getSingBoxVersion');
+  }
+
+  @override
+  Future<bool> isCommandSocketReady() async {
+    return await methodChannel.invokeMethod('isCommandSocketReady');
   }
 
   @override

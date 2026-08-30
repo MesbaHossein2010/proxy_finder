@@ -42,21 +42,37 @@ class ProxyTester {
 
   /// Tests a batch with bounded concurrency (same purpose as desktop's
   /// asyncio.Semaphore(concurrency)), streaming each result as it lands.
+  /// Duplicates (same server:port:protocol) are tested only once.
   Stream<Proxy> testAll(List<Proxy> proxies, {int concurrency = 10}) {
+    final seen = <String>{};
+    final unique = <Proxy>[];
+    for (final p in proxies) {
+      if (seen.add(p.fingerprint)) unique.add(p);
+    }
+
     final controller = StreamController<Proxy>();
     var index = 0;
     var active = 0;
     var completed = 0;
 
     void pump() {
-      while (active < concurrency && index < proxies.length) {
-        final proxy = proxies[index++];
+      while (active < concurrency && index < unique.length) {
+        final proxy = unique[index++];
         active++;
         testOne(proxy).then((result) {
           active--;
           completed++;
           controller.add(result);
-          if (completed == proxies.length) {
+          if (completed == unique.length) {
+            controller.close();
+          } else {
+            pump();
+          }
+        }).catchError((Object e) {
+          active--;
+          completed++;
+          controller.add(proxy.copyWithResult(working: false, testType: 'error'));
+          if (completed == unique.length) {
             controller.close();
           } else {
             pump();
@@ -66,7 +82,7 @@ class ProxyTester {
     }
 
     pump();
-    if (proxies.isEmpty) controller.close();
+    if (unique.isEmpty) controller.close();
     return controller.stream;
   }
 

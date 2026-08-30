@@ -20,6 +20,12 @@
 
 
     <application>
+        <activity
+            android:name="com.clashsing.flutter_sing_box.VpnPermissionActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop" />
         <service
             android:name="io.nekohasekai.sfa.bg.VPNService"
             android:exported="true"

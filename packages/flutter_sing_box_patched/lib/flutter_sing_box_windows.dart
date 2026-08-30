@@ -1,3 +1,4 @@
+// ignore_for_file: unawaited_return_in_try_block
 import 'dart:async';
 import 'dart:io' as io;
 import 'package:flutter_sing_box/src/constants/windows_constants.dart';
@@ -159,6 +160,12 @@ class FlutterSingBoxWindows extends FlutterSingBoxPlatform {
   @override
   Future<String> getSingBoxVersion() async {
     return '1.13.15';
+  }
+
+  @override
+  Future<bool> isCommandSocketReady() async {
+    // Windows helper has no command socket; report ready (no-op).
+    return true;
   }
 
   @override

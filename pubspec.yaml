@@ -1,35 +1,32 @@
 name: proxy_checker_mobile
-description: Minimal Android proxy tester and connector (3-layer test, sing-box core).
+description: >-
+  Android proxy tester and connector — import proxy lists, run a 3-layer
+  test (TCP → tunnel → validation), find the fastest working proxy and
+  connect through it via a system VPN tunnel (sing-box core).
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.1+2
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
-  flutter: ">=3.19.0"
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: ">=3.29.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  file_picker: 10.3.10        # import proxy list from a file
-  http: ^1.2.2                 # fetch subscription URLs
+  device_info_plus: ^13.1.0    # error report: device model/OS (matches plugin)
+  file_picker: 12.0.0-beta.7  # import proxy list from a file (win32 6.x required by plugin deps)
+  http: ^1.2.2                # fetch subscription URLs
+  package_info_plus: ^10.1.0  # error report: app version (matches plugin)
   path_provider: ^2.1.0
   mmkv: ^2.0.1
+  share_plus: ^13.0.0      # share/export + error report sharing (win32 6.x)
   flutter_sing_box:
     path: packages/flutter_sing_box_patched
-  # --- VPN/proxy engine plugin ---
-  # Pick ONE community sing-box wrapper and vet it before committing:
-  #   flutter_sing_box, flutter_singbox_vpn, or sing_box (all on pub.dev)
-  # This project talks to it only through lib/proxy_engine.dart, so swapping
-  # the plugin later means editing one file, not the whole app.
-  # flutter_sing_box: ^0.1.0   # <-- uncomment once you've picked/verified one
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
-
-dependency_overrides:
-  device_info_plus: ">=9.0.0 <11.0.0"
-  package_info_plus: ">=7.0.0 <9.0.0"

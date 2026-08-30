@@ -375,7 +375,18 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     @OptIn(DelicateCoroutinesApi::class)
     @Suppress("SameReturnValue")
     internal fun onStartCommand(): Int {
-        if (status.value != Status.Stopped) return Service.START_NOT_STICKY
+        if (status.value != Status.Stopped) {
+            // HyperOS can leave a foreground-service process in a half-dead
+            // state — neither cleanly destroyed nor genuinely alive — where
+            // `status` never gets reset to Stopped even though the command
+            // socket and tunnel are already gone. Trust real socket liveness
+            // over the in-memory flag before honoring this guard.
+            val socket = java.io.File(service.filesDir, "command.sock")
+            if (socket.exists()) {
+                return Service.START_NOT_STICKY // genuinely already running
+            }
+            status.value = Status.Stopped
+        }
         status.value = Status.Starting
 
         if (!receiverRegistered) {

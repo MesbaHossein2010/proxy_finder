@@ -32,6 +32,12 @@ abstract class FlutterSingBoxPlatform extends PlatformInterface {
     throw UnimplementedError('init() has not been implemented.');
   }
 
+  /// Checks if VPN permission is already granted (no dialog needed).
+  /// Returns true if permission is already granted.
+  Future<bool> prepareVpn() async {
+    throw UnimplementedError('prepareVpn() has not been implemented.');
+  }
+
   /// Starts the VPN service.
   Future<void> startVpn() async {
     throw UnimplementedError('startVpn() has not been implemented.');
@@ -72,6 +78,10 @@ abstract class FlutterSingBoxPlatform extends PlatformInterface {
     throw UnimplementedError('getSingBoxVersion() has not been implemented.');
   }
 
+  Future<bool> isCommandSocketReady() async {
+    throw UnimplementedError('isCommandSocketReady() has not been implemented.');
+  }
+
   /// 查询 Windows 端 `clash_sing_service` 的安装/运行状态。
   ///
   /// 仅 Windows 平台实现真正执行（调用 clash_sing_helper.exe status）；
@@ -101,7 +111,7 @@ abstract class FlutterSingBoxPlatform extends PlatformInterface {
     throw UnimplementedError('startService() has not been implemented.');
   }
 
-  /// 停止 Windows 系统服务（helper 内部走 HTTP API 同步关闭）。
+  /// 停止 Windows 系统服务。
   Future<bool> stopService() async {
     throw UnimplementedError('stopService() has not been implemented.');
   }

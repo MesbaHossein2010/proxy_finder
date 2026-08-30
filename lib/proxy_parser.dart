@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'models/proxy.dart';
 
 const _proxySchemes = ['vmess://', 'ss://', 'trojan://', 'vless://'];
+const _validProtocols = {'VMess', 'Shadowsocks', 'Trojan', 'VLESS'};
 
 /// Dart's base64 decoder is strict about padding, unlike Python's, which
 /// silently tolerates missing '='. This restores the padding manually,
@@ -10,6 +11,12 @@ String _padBase64(String input) {
   final mod = input.length % 4;
   if (mod == 0) return input;
   return input + '=' * (4 - mod);
+}
+
+/// Removes non-base64 characters that commonly sneak into subscription blobs
+/// (whitespace, inline comments, fragments).
+String _sanitizeBase64(String input) {
+  return input.replaceAll(RegExp(r'\s'), '');
 }
 
 /// Port of extract_proxy_uris: pulls proxy URIs out of pasted/imported text,
@@ -26,7 +33,9 @@ List<String> extractProxyUris(String text) {
     if (!looksLikeUri) {
       // Try treating the whole line as base64-encoded subscription content
       try {
-        final decoded = utf8.decode(base64.decode(_padBase64(line)));
+        final cleaned = _sanitizeBase64(line);
+        if (cleaned.length < 8) continue;
+        final decoded = utf8.decode(base64.decode(_padBase64(cleaned)));
         if (_proxySchemes.any((s) => decoded.contains(s))) {
           uris.addAll(extractProxyUris(decoded));
           continue;
@@ -37,16 +46,40 @@ List<String> extractProxyUris(String text) {
     }
 
     if (line.contains('|') && _proxySchemes.any((s) => line.contains(s))) {
+      // Clash-style "|"-separated lists may mix several schemes
       for (final part in line.split('|')) {
         final p = part.trim();
         if (_proxySchemes.any((s) => p.startsWith(s))) uris.add(p);
       }
     } else if (_proxySchemes.any((s) => line.startsWith(s))) {
       uris.add(line);
+    } else {
+      // Embedded URI inside a larger line (e.g. markup, logs)
+      final embedded = RegExp(r'(vmess|ss|trojan|vless)://[^\s<>"]+')
+          .firstMatch(line)
+          ?.group(0);
+      if (embedded != null) uris.add(embedded);
     }
   }
 
   return uris.toSet().toList(); // de-dupe, same as desktop's seen/unique logic
+}
+
+/// Validate that a parsed proxy has a usable server/port.
+bool _isValidProxy(Proxy? p) {
+  if (p == null) return false;
+  if (!_validProtocols.contains(p.protocol)) return false;
+  if (p.server.isEmpty) return false;
+  if (p.port <= 0 || p.port > 65535) return false;
+  // Basic sanity: password/uuid should be non-trivial
+  if (p.protocol == 'Trojan' && (p.password == null || p.password!.isEmpty)) {
+    return false;
+  }
+  if ((p.protocol == 'VMess' || p.protocol == 'VLESS') &&
+      (p.uuid == null || p.uuid!.length < 8)) {
+    return false;
+  }
+  return true;
 }
 
 Proxy? parseProxyUri(String uri) {
@@ -61,28 +94,30 @@ Proxy? parseProxyUri(String uri) {
 /// Port of parse_vmess: base64 JSON blob after "vmess://"
 Proxy? _parseVmess(String uri) {
   try {
-    final decoded = utf8.decode(base64.decode(_padBase64(uri.substring(8))));
+    final decoded = utf8.decode(base64.decode(_padBase64(_sanitizeBase64(uri.substring(8)))));
     final d = jsonDecode(decoded) as Map<String, dynamic>;
-    return Proxy(
+    final proxy = Proxy(
       protocol: 'VMess',
-      server: d['add'] ?? '',
+      server: (d['add'] ?? '').toString(),
       port: int.tryParse('${d['port'] ?? 0}') ?? 0,
-      uuid: d['id'] ?? '',
-      encryption: d['scy'] ?? d['security'] ?? 'auto',
-      network: d['net'] ?? 'tcp',
-      tls: d['tls'] ?? '',
-      sni: d['sni'] ?? d['host'] ?? '',
-      path: d['path'] ?? '/',
-      host: d['host'] ?? '',
+      uuid: (d['id'] ?? '').toString(),
+      encryption: (d['scy'] ?? d['security'] ?? 'auto').toString(),
+      network: (d['net'] ?? 'tcp').toString(),
+      tls: (d['tls'] ?? '').toString(),
+      sni: (d['sni'] ?? d['host'] ?? '').toString(),
+      path: (d['path'] ?? '/').toString(),
+      host: (d['host'] ?? '').toString(),
       uri: uri,
     );
+    return _isValidProxy(proxy) ? proxy : null;
   } catch (_) {
     return null;
   }
 }
 
 /// Port of parse_ss: handles both "method:pass@host:port" and the fully
-/// base64-encoded "ss://<base64>" legacy form.
+/// base64-encoded "ss://<base64>" legacy form, plus the modern SIP002
+/// "ss://<base64 method:pass>@host:port" form.
 Proxy? _parseSs(String uri) {
   try {
     var rest = uri.substring(5);
@@ -91,31 +126,58 @@ Proxy? _parseSs(String uri) {
 
     String userInfo, hostPort;
     if (rest.contains('@')) {
+      // SIP002: userinfo may itself be base64 ("<b64>@host:port")
       final atIdx = rest.lastIndexOf('@');
-      userInfo = rest.substring(0, atIdx);
+      final rawUser = rest.substring(0, atIdx);
       hostPort = rest.substring(atIdx + 1);
+      if (rawUser.contains(':')) {
+        userInfo = rawUser;
+      } else {
+        // base64-encoded method:pass
+        userInfo = utf8.decode(base64.decode(_padBase64(_sanitizeBase64(rawUser))));
+      }
     } else {
-      final decoded = utf8.decode(base64.decode(_padBase64(rest)));
+      final decoded = utf8.decode(base64.decode(_padBase64(_sanitizeBase64(rest))));
       final atIdx = decoded.lastIndexOf('@');
+      if (atIdx == -1) return null;
       userInfo = decoded.substring(0, atIdx);
       hostPort = decoded.substring(atIdx + 1);
     }
 
     final colonIdx = userInfo.indexOf(':');
+    if (colonIdx <= 0) return null;
     final method = userInfo.substring(0, colonIdx);
     final pass = userInfo.substring(colonIdx + 1);
-    final hpColonIdx = hostPort.lastIndexOf(':');
-    final host = hostPort.substring(0, hpColonIdx);
-    final port = int.parse(hostPort.substring(hpColonIdx + 1));
+    if (pass.isEmpty) return null;
 
-    return Proxy(
+    final hpColonIdx = hostPort.lastIndexOf(':');
+    if (hpColonIdx <= 0) return null;
+    final host = hostPort.substring(0, hpColonIdx);
+    final port = int.tryParse(hostPort.substring(hpColonIdx + 1));
+    if (port == null || port <= 0 || port > 65535) return null;
+
+    // Plugin support: "plugin=obfs-local;obfs=http;obfs-host=..."
+    String? plugin;
+    final pluginIdx = hostPort.indexOf('?plugin=');
+    if (pluginIdx != -1) {
+      plugin = hostPort.substring(pluginIdx + 8);
+      // plugin is URI-encoded in SIP002
+      try {
+        plugin = Uri.decodeComponent(plugin);
+      } catch (_) {}
+    }
+
+    final proxy = Proxy(
       protocol: 'Shadowsocks',
       server: host,
       port: port,
       encryption: method,
       uuid: pass, // password, reusing the "uuid" slot like desktop does
+      tls: plugin != null ? 'plugin' : null,
+      host: plugin != null ? plugin : null,
       uri: uri,
     );
+    return _isValidProxy(proxy) ? proxy : null;
   } catch (_) {
     return null;
   }
@@ -125,11 +187,12 @@ Proxy? _parseSs(String uri) {
 Proxy? _parseTrojan(String uri) {
   try {
     final u = Uri.parse(uri);
-    return Proxy(
+    if (u.host.isEmpty || u.userInfo.isEmpty) return null;
+    final proxy = Proxy(
       protocol: 'Trojan',
       server: u.host,
       port: u.hasPort ? u.port : 443,
-      password: u.userInfo,
+      password: Uri.decodeComponent(u.userInfo),
       sni: u.queryParameters['sni'] ?? u.host,
       tls: u.queryParameters['security'] ?? 'tls',
       network: u.queryParameters['type'] ?? 'tcp',
@@ -137,6 +200,7 @@ Proxy? _parseTrojan(String uri) {
       host: u.queryParameters['host'] ?? u.host,
       uri: uri,
     );
+    return _isValidProxy(proxy) ? proxy : null;
   } catch (_) {
     return null;
   }
@@ -146,11 +210,12 @@ Proxy? _parseTrojan(String uri) {
 Proxy? _parseVless(String uri) {
   try {
     final u = Uri.parse(uri);
-    return Proxy(
+    if (u.host.isEmpty || u.userInfo.isEmpty) return null;
+    final proxy = Proxy(
       protocol: 'VLESS',
       server: u.host,
       port: u.hasPort ? u.port : 443,
-      uuid: u.userInfo,
+      uuid: Uri.decodeComponent(u.userInfo),
       encryption: u.queryParameters['encryption'] ?? 'none',
       network: u.queryParameters['type'] ?? 'tcp',
       tls: u.queryParameters['security'] ?? '',
@@ -159,6 +224,7 @@ Proxy? _parseVless(String uri) {
       host: u.queryParameters['host'] ?? '',
       uri: uri,
     );
+    return _isValidProxy(proxy) ? proxy : null;
   } catch (_) {
     return null;
   }

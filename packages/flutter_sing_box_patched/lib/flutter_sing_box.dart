@@ -24,6 +24,12 @@ class FlutterSingBox {
     return await FlutterSingBoxPlatform.instance.startVpn();
   }
 
+  /// Checks if VPN permission is already granted (no dialog needed).
+  /// Returns true if permission is already granted.
+  Future<bool> prepareVpn() async {
+    return await FlutterSingBoxPlatform.instance.prepareVpn();
+  }
+
   /// Stops the VPN service.
   Future<void> stopVpn() async {
     return await FlutterSingBoxPlatform.instance.stopVpn();
@@ -73,6 +79,12 @@ class FlutterSingBox {
   /// Gets the version of the underlying sing-box core.
   Future<String> getSingBoxVersion() async {
     return await FlutterSingBoxPlatform.instance.getSingBoxVersion();
+  }
+
+  /// True when the background service has bound its command socket. Cheap,
+  /// side-effect-free readiness probe (checks the socket file exists).
+  Future<bool> isCommandSocketReady() async {
+    return await FlutterSingBoxPlatform.instance.isCommandSocketReady();
   }
 
   /// 查询 Windows 端 `clash_sing_service` 的安装/运行状态。

@@ -1,30 +1,51 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:proxy_checker_mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('App renders title and Import tab', (tester) async {
+    await tester.pumpWidget(const ProxyCheckerApp());
+    // Advance fake time past the 30s engine-init timeout so the pending
+    // timer fires and no "pending timers" failure occurs at teardown.
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pump(const Duration(milliseconds: 100));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // App bar title
+    expect(find.text('Proxy Checker'), findsWidgets);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Import tab elements
+    expect(find.text('Fetch from URL'), findsOneWidget);
+    expect(find.text('Paste'), findsOneWidget);
+    expect(find.text('File'), findsOneWidget);
+
+    // Navigation bar
+    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Results'), findsOneWidget);
+    expect(find.text('Best'), findsOneWidget);
+  });
+
+  testWidgets('Results tab shows empty state', (tester) async {
+    await tester.pumpWidget(const ProxyCheckerApp());
+    await tester.pump(const Duration(seconds: 31));
+
+    // Switch to Results tab
+    await tester.tap(find.text('Results'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('No results yet'), findsOneWidget);
+  });
+
+  testWidgets('Best tab shows empty state', (tester) async {
+    await tester.pumpWidget(const ProxyCheckerApp());
+    await tester.pump(const Duration(seconds: 31));
+
+    await tester.tap(find.text('Best'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('No best proxy yet'), findsOneWidget);
   });
 }

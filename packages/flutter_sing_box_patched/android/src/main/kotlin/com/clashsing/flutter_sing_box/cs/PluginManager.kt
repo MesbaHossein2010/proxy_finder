@@ -31,10 +31,23 @@ object PluginManager {
                 return
             }
             this._appContext = context.applicationContext
-            MMKV.mmkvWithID(ProfileManager.MMKV_ID, MMKV.MULTI_PROCESS_MODE)
-            MMKV.mmkvWithID(SettingsManager.MMKV_ID, MMKV.MULTI_PROCESS_MODE)
+            initializeMmkv(context)
             initSingBox()
         }
+    }
+
+    /**
+     * Initializes MMKV. Must run in EVERY process (including :remote,
+     * where BoxService lives) before any MMKV.mmkvWithID() call, otherwise
+     * the VPN service crashes with "You should Call MMKV.initialize() first".
+     *
+     * Safe to call multiple times and from any process; initialize() is a
+     * no-op after the first real call in that process.
+     */
+    fun initializeMmkv(context: Context) {
+        MMKV.initialize(context)
+        MMKV.mmkvWithID(ProfileManager.MMKV_ID, MMKV.MULTI_PROCESS_MODE)
+        MMKV.mmkvWithID(SettingsManager.MMKV_ID, MMKV.MULTI_PROCESS_MODE)
     }
 
     private fun initSingBox() {
